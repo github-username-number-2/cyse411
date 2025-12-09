@@ -5,6 +5,14 @@ const cors = require("cors");
 const sqlite3 = require("sqlite3").verbose();
 const crypto = require("crypto");
 const lusca = require("lusca");
+const rateLimit = require("express-rate-limit");
+
+// Rate limiter for login (e.g. max 5 requests per minute per IP)
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // limit each IP to 5 requests per windowMs
+  message: { error: "Too many login attempts, please try again later." }
+});
 
 const app = express();
 
@@ -78,7 +86,7 @@ function auth(req, res, next) {
 // Q4 — AUTH ISSUE 3: Username enumeration.
 // Q4 — AUTH ISSUE 4: Predictable sessionId.
 // ------------------------------------------------------------
-app.post("/login", (req, res) => {
+app.post("/login", loginLimiter, (req, res) => {
   const { username, password } = req.body;
 
   const sql = `SELECT id, username, password_hash FROM users WHERE username = '${username}'`;
