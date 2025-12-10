@@ -5,6 +5,7 @@ const fs = require('fs');
 const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const app = express();
+app.disable('x-powered-by');
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
