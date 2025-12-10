@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { body, validationResult } = require('express-validator');
-
+const rateLimit = require('express-rate-limit');
 const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
@@ -12,6 +12,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 const BASE_DIR = path.resolve(__dirname, 'files');
 if (!fs.existsSync(BASE_DIR)) fs.mkdirSync(BASE_DIR, { recursive: true });
 
+// Rate limiter for demo vulnerable route
+const readNoValidateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { error: "Too many requests to /read-no-validate, please try again later." }
+});
 // helper to canonicalize and check
 function resolveSafe(baseDir, userInput) {
   try {
@@ -50,17 +56,21 @@ app.post(
 );
 
 // Vulnerable route (demo)
-app.post('/read-no-validate', (req, res) => {
-  const filename = req.body.filename || '';
-  // Fix: Canonicalize and check path
-  const normalized = path.resolve(BASE_DIR, filename);
-  if (!normalized.startsWith(BASE_DIR + path.sep)) {
-    return res.status(403).json({ error: 'Path traversal detected' });
+app.post(
+  '/read-no-validate',
+  readNoValidateLimiter,
+  (req, res) => {
+    const filename = req.body.filename || '';
+    // Fix: Canonicalize and check path
+    const normalized = path.resolve(BASE_DIR, filename);
+    if (!normalized.startsWith(BASE_DIR + path.sep)) {
+      return res.status(403).json({ error: 'Path traversal detected' });
+    }
+    if (!fs.existsSync(normalized)) return res.status(404).json({ error: 'File not found', path: normalized });
+    const content = fs.readFileSync(normalized, 'utf8');
+    res.json({ path: normalized, content });
   }
-  if (!fs.existsSync(normalized)) return res.status(404).json({ error: 'File not found', path: normalized });
-  const content = fs.readFileSync(normalized, 'utf8');
-  res.json({ path: normalized, content });
-});
+);
 
 // Helper route for samples
 app.post('/setup-sample', (req, res) => {
